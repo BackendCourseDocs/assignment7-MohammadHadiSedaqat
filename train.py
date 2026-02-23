@@ -28,6 +28,7 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 books = []
 size = 0
 
+
 def load_initial_data():
     global books, size
     url = "https://openlibrary.org/search.json"
@@ -36,15 +37,25 @@ def load_initial_data():
     data = response.json()
 
     for index, book in enumerate(data.get("docs", [])):
-        books.append({
-            "id": 999+index,
-            "title": book.get("title", "Unknown"),
-            "author": book.get("author_name", ["Unknown"])[0] if book.get("author_name") else "Unknown",
-            "publisher": book.get("publisher", ["Unknown"])[0] if book.get("publisher") else "Unknown",
-            "first_publish_year": book.get("first_publish_year", 0),
-            "image_url": None,
-            "source": "OpenLibrary"
-        })
+        books.append(
+            {
+                "id": 999 + index,
+                "title": book.get("title", "Unknown"),
+                "author": (
+                    book.get("author_name", ["Unknown"])[0]
+                    if book.get("author_name")
+                    else "Unknown"
+                ),
+                "publisher": (
+                    book.get("publisher", ["Unknown"])[0]
+                    if book.get("publisher")
+                    else "Unknown"
+                ),
+                "first_publish_year": book.get("first_publish_year", 0),
+                "image_url": None,
+                "source": "OpenLibrary",
+            }
+        )
         size += 1
 
 
@@ -56,9 +67,9 @@ async def startup_event():
 # GET: path or query
 @app.get("/books")
 async def search_books(
-        q: str = Query(..., min_length=3, max_length=100, description="Search query"),
-        skip: Optional[int] = Query(0, ge=0),
-        limit: Optional[int] = Query(10, ge=0)
+    q: str = Query(..., min_length=3, max_length=100, description="Search query"),
+    skip: Optional[int] = Query(0, ge=0),
+    limit: Optional[int] = Query(10, ge=0),
 ):
 
     sql = "SELECT id, title, author, publisher, first_publish_year, image_url FROM books WHERE 1=1"
@@ -83,7 +94,7 @@ async def search_books(
             "publisher": row[3],
             "first_publish_year": row[4],
             "image_url": f"http://127.0.0.1:8000/images/{row[5]}" if row[5] else None,
-            "source": "Database"
+            "source": "Database",
         }
         for row in rows
     ]
@@ -91,7 +102,8 @@ async def search_books(
     query_lower = q.lower()
 
     ext_results = [
-        book for book in books
+        book
+        for book in books
         if query_lower in book["title"].lower()
         or query_lower in book["author"].lower()
         or query_lower in book["publisher"].lower()
@@ -101,18 +113,23 @@ async def search_books(
     all_result = db_results + ext_results
     total_count = len(all_result)
     end = (skip + limit) if limit is not None else total_count
-    final_result = all_result[skip: end]
+    final_result = all_result[skip:end]
 
     return {
         "query": q,
         "all counts": total_count,
         "results": final_result,
         "skip": skip,
-        "limit": limit
+        "limit": limit,
     }
 
+
 @app.get("/authors")
-async def get_authors(q: str = Query(..., min_length=1, max_length=100, description="Search query for authors")):
+async def get_authors(
+    q: str = Query(
+        ..., min_length=1, max_length=100, description="Search query for authors"
+    )
+):
 
     sql = """
         SELECT author, COUNT(*) AS book_count
@@ -123,25 +140,34 @@ async def get_authors(q: str = Query(..., min_length=1, max_length=100, descript
 
     cursor.execute(sql, (f"%{q.lower()}%",))
     db_results = [{"author": row[0], "book_count": row[1]} for row in cursor.fetchall()]
+    merged_authors = {}
+
+    for row in db_results:
+        author_name = row["author"]
+        count = row["book_count"]
+        merged_authors[author_name] = count
 
     query_lower = q.lower()
-    ext_results = {}
+
     for book in books:
         author_name = book["author"]
         if query_lower in author_name.lower():
-            ext_results[author_name] = ext_results.get(author_name, 0) + 1
+            if author_name in merged_authors:
+                merged_authors[author_name] += 1
+            else:
+                merged_authors[author_name] = 1
 
-    ext_results = [{"author": author, "book_count": count} for author, count in ext_results.items()]
+    if not merged_authors:
+        raise HTTPException(
+            status_code=404, detail="No authors found matching the query"
+        )
 
-    all_result = db_results + ext_results
+    final_results = [
+        {"author": author, "book_count": count}
+        for author, count in merged_authors.items()
+    ]
 
-    if not all_result:
-        raise HTTPException(status_code=404, detail="No authors found matching the query")
-
-    return {
-        "query": q,
-        "results": all_result
-    }
+    return {"query": q, "results": final_results}
 
 
 # POST: Form or Json
