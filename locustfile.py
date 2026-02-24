@@ -6,11 +6,16 @@ class WebUser(HttpUser):
 
     @task
     def search_authors(self):
-        self.client.get("/authors", params={"q":"Mark Lutz"})
+        self.client.get("/authors", params={"q": "Mark Lutz"})
 
     @task
     def search_books(self):
-        self.client.get("/books", params={"q":"python"})
+        self.client.get("/books", params={"q": "python"})
+
+    @task
+    def delete_book(self):
+        book_id = 1010
+        self.client.delete(f"/books/{book_id}")
 
     @task
     def add_book(self):
@@ -25,6 +30,25 @@ class WebUser(HttpUser):
         )
 
     @task
-    def delete_book(self):
-        book_id = 1010
-        self.client.delete(f"/users/{book_id}")
+    def update_fully_book(self):
+        book_id = 1020
+        self.client.put(
+            f"/books/{book_id}",
+            json={
+                "title": "c++",
+                "author": "Naser",
+                "publisher": "science",
+                "first_publish_year": 1990,
+            },
+        )
+
+    @task
+    def update_book_part(self):
+        book_id = 1020
+        self.client.patch(
+            f"/books/{book_id}",
+            json={
+                "title": "c++",
+                "author": "Naser",
+            },
+        )
