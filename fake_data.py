@@ -29,10 +29,13 @@ for _ in range(NUM_BOOKS):
     year = random.randint(1900, 2023)
     image_url = None
 
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO books (title, author, publisher, first_publish_year, image_url)
     VALUES (%s, %s, %s, %s, %s)
-    """, (title, author, publisher, year, image_url))
+    """,
+        (title, author, publisher, year, image_url),
+    )
 
 conn.commit()
 conn.close()
