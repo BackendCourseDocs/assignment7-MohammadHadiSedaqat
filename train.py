@@ -125,7 +125,7 @@ async def search_books(
 
 
 @app.get("/authors")
-async def get_authors(
+async def search_authors(
     q: str = Query(
         ..., min_length=1, max_length=100, description="Search query for authors"
     )
